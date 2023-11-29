@@ -82,7 +82,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
 
     model = keras.models.load_model("best_model_overlap.h5")
     #calculate the probability that seizure occurs on each segment
-    predictions = model.predict(X_test_scaled[:])
+    predictions = model.predict(X_train_scaled[:])
     samples_per_seg = 1000 # number of samples pro segment
     segment_duration = fs * samples_per_seg
     
