@@ -18,6 +18,19 @@ from wettbewerb import get_3montages
 import mne
 from scipy import signal as sig
 import ruptures as rpt
+import Segment_no_labels as sg
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import load_model, Model, Sequential
+
+import tensorflow as tf 
+from tensorflow.keras.callbacks import ModelCheckpoint,ReduceLROnPlateau,EarlyStopping,TensorBoard, History, LambdaCallback
+from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.metrics import RootMeanSquaredError
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import Conv1D, GaussianNoise,Input,concatenate,MaxPooling1D,Conv2D, MaxPooling2D, Dense, Flatten, Dropout,Lambda, LSTM,GRU, Input,Reshape, Bidirectional, Attention, RepeatVector, TimeDistributed,Activation ,InputLayer, BatchNormalization
+from tensorflow.keras.models import load_model, Model, Sequential
+from keras import regularizers
+import keras 
 
 
 
@@ -45,7 +58,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
 
 #------------------------------------------------------------------------------
 # Euer Code ab hier  
-
+#######
     # Initialisiere Return (Ergebnisse)
     seizure_present = True # gibt an ob ein Anfall vorliegt
     seizure_confidence = 0.5 # gibt die Unsicherheit des Modells an (optional)
@@ -53,83 +66,47 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
     onset_confidence = 0.99 # gibt die Unsicherheit bezüglich des Beginns an (optional)
     offset = 999999  # gibt das Ende des Anfalls an (optional)
     offset_confidence = 0   # gibt die Unsicherheit bezüglich des Endes an (optional)
+ 
+    segmented_data_input_train = sg.segment_all_data(data, channels, fs, segment_duration = 1000)
 
-    # Hier könnt ihr euer vortrainiertes Modell laden (Kann auch aus verschiedenen Dateien bestehen)
-    with open(model_name, 'rb') as f:  
-        parameters = json.load(f)         # Lade simples Model (1 Parameter)
-        th_opt = parameters['std_thresh']
 
+    # Initialize MinMaxScaler
+    Scaler = MinMaxScaler()
+    # Fit and transform the data
+    X_scaler = Scaler.fit(segmented_data_input_train.reshape(-1, 3))
+
+    X_train_scaled = X_scaler.transform(segmented_data_input_train.reshape(-1, 3))
+
+    # Reshape the scaled data back to the original shape
+    X_train_scaled = X_train_scaled.reshape(segmented_data_input_train.shape[0], segmented_data_input_train.shape[2] ,segmented_data_input_train.shape[1])
+
+    model = keras.models.load_model("best_model_overlap.h5")
+    #calculate the probability that seizure occurs on each segment
+    predictions = model.predict(X_test_scaled[:])
+    samples_per_seg = 1000 # number of samples pro segment
+    segment_duration = fs * samples_per_seg
     
-    # Wende Beispielcode aus Vorlesung an 
+    #set a threshold of 0.28. Only when equal or higher does seizure occur. Sezure_present = True when seizure occur over 3 segments
     
-    _montage, _montage_data, _is_missing = get_3montages(channels, data)
-    signal_std = np.zeros(len(_montage))
-    for j, signal_name in enumerate(_montage):
-        # Ziehe erste Montage des EEG
-        signal = _montage_data[j]
-        # Wende Notch-Filter an um Netzfrequenz zu dämpfen
-        signal_notch = mne.filter.notch_filter(x=signal, Fs=fs, freqs=np.array([50.,100.]), n_jobs=2, verbose=False)
-        # Wende Bandpassfilter zwischen 0.5Hz und 70Hz um Rauschen aus dem Signal zu filtern
-        signal_filter = mne.filter.filter_data(data=signal_notch, sfreq=fs, l_freq=0.5, h_freq=70.0, n_jobs=2, verbose=False)
-        
-        # Berechne short time fourier transformation des Signal: signal_filtered = filtered signal of channel, fs = sampling frequency, nperseg = length of each segment
-        # Output f= array of sample frequencies, t = array of segment times, Zxx = STFT of signal
-        f, t, Zxx = sig.stft(signal_filter, fs, nperseg=fs * 3)
-        # Berechne Schrittweite der Frequenz
-        df = f[1] - f[0]
-        # Berechne Engergie (Betrag) basierend auf Real- und Imaginärteil der STFT
-        E_Zxx = np.sum(Zxx.real ** 2 + Zxx.imag ** 2, axis=0) * df
-        
-        signal_std[j] = np.std(signal_filter)
-
-
-
-        # Erstelle neues Array in der ersten Iteration pro Patient
-        if j == 0:
-            # Initilisiere Array mit Energiesignal des ersten Kanals
-            E_array = np.array(E_Zxx)
+    seizure_prediction = predictions >= 0.26
+    seizure_present = []
+    seizure_segment = []
+    for i in range(len(seizure_prediction[0])-2):
+        if (seizure_prediction[i] == True and seizure_prediction[i+1] == True and seizure_prediction [i+2]==True):
+            seizure_present[i] = True
+            seizure_segment.append(i)
         else:
-            # Füge neues Energiesignal zu vorhandenen Kanälen hinzu (stack it)
-            E_array = np.vstack((E_array, np.array(E_Zxx)))
-            
-    # Berechne Feature zur Seizure Detektion
-    signal_std_max = signal_std.max()
-    # Klassifiziere Signal
-    seizure_present = signal_std_max>th_opt
+            seizure_present = False
     
-    # Berechne Gesamtenergie aller Kanäle für jeden Zeitppunkt
-    E_total = np.sum(E_array, axis=0)
-    # Berechne Stelle der maximalen Energie
-    max_index = E_total.argmax()
-
-    # Berechne "changepoints" der Gesamtenergie
-    # Falls Maximum am Anfang des Signals ist muss der Onset ebenfalls am Anfang sein und wir können keinen "changepoint" berechnen
-    if max_index == 0:
-        onset = 0.0
-        onset_confidence = 0.2
+    #if seizure occur, onset = first segment index * segment duration
+    #offset = onset + distance to the next segment without seizure
+    if seizure_present:
+        onset = segment_duration*seizure_segment[0]
+        rest_segment = seizure_present[seizure_segment[0]:]
+        not_seizure = np.where(rest_segment==False)[0]
+        offset = onset + segment_duration * not_seizure[0]
         
-    else:
-        # Berechne "changepoint" mit dem ruptures package
-        # Setup für  "linearly penalized segmentation method" zur Detektion von changepoints im Signal mi rbf cost function
-        algo = rpt.Pelt(model="rbf").fit(E_total)
-        # Berechne sortierte Liste der changepoints, pen = penalty value
-        result = algo.predict(pen=10)
-        #Indices sind ums 1 geshiftet
-        result1 = np.asarray(result) - 1
-        # Selektiere changepoints vor Maximum
-        result_red = result1[result1 < max_index]
-        # Falls es mindestens einen changepoint gibt nehmen wir den nächsten zum Maximum
-        if len(result_red)<1:
-            # Falls keine changepoint gefunden wurde raten wir, dass er "nahe" am Maximum ist
-            print('No changepoint, taking maximum')
-            onset_index = max_index
-        else:
-            # Der changepoint entspricht gerade dem Onset 
-            onset_index = result_red[-1]
-        # Gebe Onset zurück
-        onset = t[onset_index]      
-     
-     
+        
     
 #------------------------------------------------------------------------------  
     prediction = {"seizure_present":seizure_present,"seizure_confidence":seizure_confidence,
