@@ -84,7 +84,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
     #calculate the probability that seizure occurs on each segment
     predictions = model.predict(X_train_scaled[:])
     samples_per_seg = 1000 # number of samples pro segment
-    segment_duration = fs * samples_per_seg
+    segment_duration = samples_per_seg/fs
     
     #set a threshold of 0.28. Only when equal or higher does seizure occur. Sezure_present = True when seizure occur over 3 segments
     
