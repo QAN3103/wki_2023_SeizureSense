@@ -12,7 +12,7 @@ import numpy as np
 import json
 import os
 from typing import List, Tuple, Dict, Any
-from wettbewerb import get_3montages
+from wettbewerb import get_3montages, get_6montages
 
 # Pakete aus dem Vorlesungsbeispiel
 import mne
@@ -67,7 +67,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
     offset = 999999  # gibt das Ende des Anfalls an (optional)
     offset_confidence = 0   # gibt die Unsicherheit bezüglich des Endes an (optional)
  
-    segmented_data_input_train = sg.segment_all_data(data, channels, fs, segment_duration = 1000)
+    segmented_data_input_train = sg.segmentation(data, channels, fs, segment_duration = 1000)
 
 
     # Initialize MinMaxScaler
@@ -84,30 +84,29 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
     #calculate the probability that seizure occurs on each segment
     predictions = model.predict(X_scaled)
     samples_per_seg = 1000 # number of samples pro segment
-    segment_duration = samples_per_seg#/fs
+    segment_duration = samples_per_seg/fs
     
     #set a threshold of 0.26. Only when equal or higher does seizure occur. Sezure_present = True when seizure occur over 3 segments
     
-    seizure_prediction = predictions >= 0.26
-    seizure_present = []
+    seizure_prediction = predictions >= 0.25
     seizure_segment = []
     for i in range(seizure_prediction.shape[0]-2):
         if (seizure_prediction[i][0] == True and seizure_prediction[i+1][0] == True and seizure_prediction [i+2][0]==True):
-            seizure_present.append (True)
+            seizure_present = True
             seizure_segment.append(i)
         else:
-            seizure_present.append(False)
+            seizure_present = False
     
     #if seizure occur, onset = first segment index * segment duration
     #offset = onset + distance to the next segment without seizure
     not_seizure = []
     if seizure_present:
         onset = segment_duration*seizure_segment[0]
-        rest_segment = seizure_prediction[seizure_segment[0]:]
-        not_seizure = np.where(rest_segment==False)[0]
-        offset = onset + segment_duration * (not_seizure[0]-1)
-        
-        
+        #rest_segment = seizure_prediction[seizure_segment[0]:]
+        #not_seizure = np.where(rest_segment==False)[0]
+        #offset = onset + segment_duration * (not_seizure[0]-1)
+    else:
+        onset = 0
     
 #------------------------------------------------------------------------------  
     prediction = {"seizure_present":seizure_present,"seizure_confidence":seizure_confidence,
