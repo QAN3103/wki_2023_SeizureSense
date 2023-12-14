@@ -9,7 +9,7 @@ import ruptures as rpt
 import json
 
 
-def segmentation(data_montage, channels, sampling_frequencies, segment_duration=None, index_record=None):
+def segmentation(data, channels, sampling_frequencies, segment_duration=None):
     """
     Segments EEG data based on seizure onset and offset timings "without overlapping".
 
@@ -23,10 +23,9 @@ def segmentation(data_montage, channels, sampling_frequencies, segment_duration=
     Returns:
     - segmented_data: List of NumPy arrays containing segmented EEG data
     """
-    sampling_frequencies = sampling_frequencies[index_record]
     segmented_data = []  # List to store segmented data
+    new_montage, data_montage, is_missing = get_6montages(channels, data)
 
-    
     # Segment the data 
     for i in range(0, data_montage.shape[1] - segment_duration, segment_duration):
         segment_start = i  # Start index of the segment
@@ -36,6 +35,7 @@ def segmentation(data_montage, channels, sampling_frequencies, segment_duration=
         
         #label = 1 if onset_index <= segment_start <= offset_index and seizure_present == 1 else 0  # Set label based on seizure event
         segmented_data.append(segment)  # Append segmented data
+        
     
     # Print information about the segmentation
     #print(f"Patient index {index_record}")
@@ -43,7 +43,7 @@ def segmentation(data_montage, channels, sampling_frequencies, segment_duration=
     #print(f"Segments with seizure: {labels.count(1)}")
     #print(f"Length of the record in sec: {data_montage.shape[1]}")
     #print(f"Label: {eeg_labels[index_record]}")
-
+    segmented_data = np.array(segmented_data)
     return segmented_data  # Return segmented data and labels
 
 import numpy as np
