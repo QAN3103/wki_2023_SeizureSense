@@ -25,9 +25,10 @@ def segmentation(data, channels, sampling_frequencies, segment_duration=None):
     """
     segmented_data = []  # List to store segmented data
     new_montage, data_montage, is_missing = get_6montages(channels, data)
-
+    #print(data_montage.shape[1])
     # Segment the data 
     for i in range(0, data_montage.shape[1] - segment_duration, segment_duration):
+        
         segment_start = i  # Start index of the segment
         segment_end = i + segment_duration  # End index of the segment
 
