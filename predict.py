@@ -95,21 +95,22 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
         seizure_segment = []
         for i in range(seizure_prediction.shape[0]-2):
             if (seizure_prediction[i][0] == True and seizure_prediction[i+1][0] == True and seizure_prediction [i+2][0]==True):
-                seizure_present = True
                 seizure_segment.append(i)
             else:
-                seizure_present = False
+                pass
                 
         #if seizure occur, onset = first segment index * segment duration
         #offset = onset + distance to the next segment without seizure
-        not_seizure = []
-        if seizure_present:
-            onset = segment_in_sec*seizure_segment[0]
+        #not_seizure = []
+        if not seizure_segment:
+            seizure_present = False
+            onset = 0
         #rest_segment = seizure_prediction[seizure_segment[0]:]
         #not_seizure = np.where(rest_segment==False)[0]
         #offset = onset + segment_duration * (not_seizure[0]-1)
         else:
-            onset = 0
+            seizure_present = True
+            onset = segment_in_sec*seizure_segment[0]
     
 #------------------------------------------------------------------------------  
     prediction = {"seizure_present":seizure_present,"seizure_confidence":seizure_confidence,
