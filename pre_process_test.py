@@ -1,12 +1,11 @@
-from split import delete_folder_contents, split_file, load_folder
+
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import numpy as np
 from tensorflow.keras.models import load_model, Model, Sequential
 #import keras
-import Segment_new as segment
+
 from wettbewerb import get_3montages
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from scipy import signal
 from pywt import wavedec
