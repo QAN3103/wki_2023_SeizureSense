@@ -149,11 +149,4 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, model_na
                    "offset_confidence":offset_confidence}
   
     return prediction # Dictionary mit prediction - Muss unverändert bleiben!
-                               
-                               
-        
-# Calculate Downsampling Factor
-    #downsampling_factor = original_sampling_frequency / target_sampling_rate
-    # Convert New Indices Back to Seconds
-    #onset_time_downsampled = onset_index_downsampled / target_sampling_rate
-    #offset_time_downsampled = offset_index_downsampled / target_sampling_rate
+
