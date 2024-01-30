@@ -8,20 +8,24 @@ Skript testet das vortrainierte Modell
 """
 
 
+import csv
+import matplotlib.pyplot as plt
 import numpy as np
-import json
 import os
-from typing import List, Tuple, Dict, Any
-from wettbewerb import get_3montages, get_6montages
-
-# Pakete aus dem Vorlesungsbeispiel
+from wettbewerb import load_references, get_3montages
 import mne
 from scipy import signal as sig
 import ruptures as rpt
-import Segment_no_labels as sg
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import load_model, Model, Sequential
+from random import randint
+import numpy as np
+import pre_process_test as pre
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+import joblib
+from typing import List
+import pandas as pd
+from typing import List, Tuple, Dict, Any
 
+from tensorflow.keras.models import load_model, Model, Sequential
 import tensorflow as tf 
 from tensorflow.keras.callbacks import ModelCheckpoint,ReduceLROnPlateau,EarlyStopping,TensorBoard, History, LambdaCallback
 from tensorflow.keras.losses import MeanSquaredError
@@ -32,10 +36,8 @@ from tensorflow.keras.models import load_model, Model, Sequential
 from keras import regularizers
 import keras 
 
-
-
 ###Signatur der Methode (Parameter und Anzahl return-Werte) darf nicht verändert werden
-def predict_labels(channels : List[str], data : np.ndarray, fs : float, reference_system: str, model_name : str='model.json') -> Dict[str,Any]:
+def predict_labels(channels : List[str], data : np.ndarray, fs : float, model_name : str='model.json') -> Dict[str,Any]:
     '''
     Parameters
     ----------
@@ -59,6 +61,8 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
 #------------------------------------------------------------------------------
 # Euer Code ab hier  
 #######
+    
+
     # Initialisiere Return (Ergebnisse)
     seizure_present = True # gibt an ob ein Anfall vorliegt
     seizure_confidence = 0.5 # gibt die Unsicherheit des Modells an (optional)
@@ -67,51 +71,78 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
     offset = 999999  # gibt das Ende des Anfalls an (optional)
     offset_confidence = 0   # gibt die Unsicherheit bezüglich des Endes an (optional)
     
-    segment_duration = 1000
+    target_sampling_rate = 173.61
+    segment_duration =  868
+
     if data.shape[1] <= segment_duration:
         seizure_present = False
         onset = 0
-    else: 
-        segmented_data_input_train = sg.segmentation(data, channels, fs, segment_duration)
-        # Initialize MinMaxScaler
-        Scaler = MinMaxScaler()
-        # Fit and transform the data
-        X_scaler = Scaler.fit(segmented_data_input_train.reshape(-1, 3))
+    else:
+        #Pre-process data by using notch filter, bandpass filter, resampling, and then segment it
+        segmented_data_input = pre.data_preprocess(data,fs ,channels,target_sampling_rate, segment_duration)
         
-        X_scaled = X_scaler.transform(segmented_data_input_train.reshape(-1, 3))
+        data_entries_test = []
+        for i, item in enumerate(segmented_data_input):
+            features = {}
+
+            for montage_idx, channel in enumerate(item, start=1):
+            
+                channel_features = pre.wavelet_features(channel, montage_idx)
+                features.update(channel_features)
+    
+            data_entries_test.append(features)
+
+        df_test = pd.DataFrame(data_entries_test)
+        #Data Scaling
+        scaler = MinMaxScaler(feature_range=(0, 1))
         
-        # Reshape the scaled data back to the original shape
-        X_scaled = X_scaled.reshape(segmented_data_input_train.shape[0], segmented_data_input_train.shape[2] ,segmented_data_input_train.shape[1])
+        #Fit the scaler on the training data and transform it
+        X_test_1 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,:36]), columns = df_test.iloc[:,:36].columns)
+        X_test_2 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,36:72]), columns = df_test.iloc[:,36:72].columns)
+        X_test_3 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,72:108]), columns = df_test.iloc[:,72:108].columns)
+
+        #load pre-trained model
+        model1 = joblib.load('svm_classifier_1.sav')
+        model2 = joblib.load('svm_classifier_2.sav')
+        model3 = joblib.load('svm_classifier_3.sav')
         
-        model = keras.models.load_model("best_model_overlap.h5")
+        predictions_1 = model1.predict(X_test_1)
+        predictions_2 = model2.predict(X_test_2)
+        predictions_3 = model3.predict(X_test_3)
         
-        #calculate the probability that seizure occurs on each segment
-        predictions = model.predict(X_scaled)
         
-        segment_in_sec = segment_duration/fs
-        #set a threshold of 0.26. Only when equal or higher does seizure occur. Sezure_present = True when seizure occur over 3 segments
-        seizure_prediction = predictions >= 0.25
-        
+        y_pred = []
+        for i in range(len(predictions_1)):
+            if(predictions_1[i] == predictions_2[i] == 1) or (predictions_2[i] == predictions_3[i] == 1) or (predictions_1[i] == predictions_3[i] == 1):
+                y_pred.append(1)
+            else:
+                y_pred.append(0)
+    
+        #seizure diagnose, calculate onset/offset
+        #Seizure_present = True when seizure occurs on 3 consecutive segments
+    
         seizure_segment = []
-        for i in range(seizure_prediction.shape[0]-2):
-            if (seizure_prediction[i][0] == True and seizure_prediction[i+1][0] == True and seizure_prediction [i+2][0]==True):
+        for i in range(len(y_pred)-2):
+            if (y_pred[i] == 1 and y_pred[i+1] == 1 and y_pred[i+2] == 1):
                 seizure_segment.append(i)
             else:
                 pass
-                
-        #if seizure occur, onset = first segment index * segment duration
-        #offset = onset + distance to the next segment without seizure
-        #not_seizure = []
+
         if not seizure_segment:
             seizure_present = False
             onset = 0
-        #rest_segment = seizure_prediction[seizure_segment[0]:]
-        #not_seizure = np.where(rest_segment==False)[0]
-        #offset = onset + segment_duration * (not_seizure[0]-1)
         else:
             seizure_present = True
-            onset = segment_in_sec*seizure_segment[0]
-    
+            #after_seizure = predictions [seizure_segment[0]:]
+            
+            downsampling_factor = fs / target_sampling_rate #calculate downsampling factor
+            
+            onset_index_downsampled = seizure_segment[0] #*downsampling_factor
+            onset_index_orginal = onset_index_downsampled * downsampling_factor + 1  # in sec
+            #onset_index_original = int(onset_index_downsampled * downsampling_factor)-1
+
+            onset = (onset_index_orginal*segment_duration) / fs 
+
 #------------------------------------------------------------------------------  
     prediction = {"seizure_present":seizure_present,"seizure_confidence":seizure_confidence,
                    "onset":onset,"onset_confidence":onset_confidence,"offset":offset,
@@ -121,3 +152,8 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
                                
                                
         
+# Calculate Downsampling Factor
+    #downsampling_factor = original_sampling_frequency / target_sampling_rate
+    # Convert New Indices Back to Seconds
+    #onset_time_downsampled = onset_index_downsampled / target_sampling_rate
+    #offset_time_downsampled = offset_index_downsampled / target_sampling_rate
