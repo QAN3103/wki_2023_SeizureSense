@@ -93,6 +93,8 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
             data_entries_test.append(features)
 
         df_test = pd.DataFrame(data_entries_test)
+        #replace NaN and inf with 0
+        df_test.replace([np.inf, -np.inf], 0, inplace=True)
         df_test = df_test.fillna(0)
         #Data Scaling
         scaler = MinMaxScaler(feature_range=(0, 1))
