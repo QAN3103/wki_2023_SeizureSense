@@ -223,4 +223,67 @@ def wavelet_features(data, montage_num):
 
     return features
 
+def custom_prediction_logic(predictions, threshold=0.55, consecutive_ones=3, number_of_zeros=1):
+    """
+    Applies custom post-processing logic to binary predictions.
+
+    This function takes a list of binary predictions and modifies them based on specified criteria.
+
+    Parameters:
+    - predictions (list): A list of binary predictions (0 or 1).
+    - threshold (float, optional): The threshold for considering a prediction as 1. Default is 0.55.
+    - consecutive_ones (int, optional): The minimum number of consecutive 1s to keep in a sequence. Default is 3.
+    - number_of_zeros (int, optional): The maximum number of zeros allowed between consecutive 1s. Default is 1.
+
+    Returns:
+    list: Modified binary predictions following the custom logic.
+    """
+    modified_predictions = [0] * len(predictions)
+    length = len(predictions)
+    i = 0
+
+    # Step 1: Replace 0s between 1s
+    while i < length:
+        if predictions[i] >= threshold:  # Start of a potential sequence
+            start = i
+            ones_count = 0
+            zeros_in_between = 0
+
+            # Count the ones and zeros within the specified limits
+            while i < length and (predictions[i] >= threshold or zeros_in_between < number_of_zeros):
+                if predictions[i] >= threshold:
+                    ones_count += 1
+                    zeros_in_between = 0
+                else:
+                    zeros_in_between += 1
+                i += 1
+
+            # If zeros are still being counted, adjust i to exclude trailing zeros
+            if zeros_in_between > 0:
+                i -= zeros_in_between
+
+            # Mark the sequence as ones if it meets the criteria
+            if ones_count >= 1:
+                for j in range(start, i):
+                    modified_predictions[j] = 1
+            else:
+                i = start + 1  # Move past this sequence
+        else:
+            i += 1
+
+    # Step 2: Replace short sequences of ones with zeros
+    i = 0
+    while i < length:
+        if modified_predictions[i] == 1:
+            start = i
+            while i < length and modified_predictions[i] == 1:
+                i += 1
+            if i - start < consecutive_ones:
+                for j in range(start, i):
+                    modified_predictions[j] = 0
+        else:
+            i += 1
+
+    return modified_predictions
+
 
