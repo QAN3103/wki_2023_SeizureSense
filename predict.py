@@ -96,55 +96,55 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
         #replace NaN and inf with 0
         df_test.replace([np.inf, -np.inf], 0, inplace=True)
         df_test = df_test.fillna(0)
-        #Data Scaling
-        scaler = MinMaxScaler(feature_range=(0, 1))
+        if df_test.empty:
+            seizure_present = False
+            onset = 0
+        else:
+            #Fit the scaler on the training data and transform it
+            X_test_1 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,:36]), columns = df_test.iloc[:,:36].columns)
+            X_test_2 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,36:72]), columns = df_test.iloc[:,36:72].columns)
+            X_test_3 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,72:108]), columns = df_test.iloc[:,72:108].columns)
+            
+            #load pre-trained model
+            model1 = joblib.load('svm_classifier_1.sav')
+            model2 = joblib.load('svm_classifier_2.sav')
+            model3 = joblib.load('svm_classifier_3.sav')
+            
+            predictions_1 = model1.predict(X_test_1)
+            predictions_2 = model2.predict(X_test_2)
+            predictions_3 = model3.predict(X_test_3)
         
-        #Fit the scaler on the training data and transform it
-        X_test_1 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,:36]), columns = df_test.iloc[:,:36].columns)
-        X_test_2 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,36:72]), columns = df_test.iloc[:,36:72].columns)
-        X_test_3 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,72:108]), columns = df_test.iloc[:,72:108].columns)
-
-        #load pre-trained model
-        model1 = joblib.load('svm_classifier_1.sav')
-        model2 = joblib.load('svm_classifier_2.sav')
-        model3 = joblib.load('svm_classifier_3.sav')
-        
-        predictions_1 = model1.predict(X_test_1)
-        predictions_2 = model2.predict(X_test_2)
-        predictions_3 = model3.predict(X_test_3)
-        
-        
-        y_pred = []
-        for i in range(len(predictions_1)):
-            if(predictions_1[i] == predictions_2[i] == 1) or (predictions_2[i] == predictions_3[i] == 1) or (predictions_1[i] == predictions_3[i] == 1):
-                y_pred.append(1)
-            else:
-                y_pred.append(0)
+            y_pred = []
+            for i in range(len(predictions_1)):
+                if(predictions_1[i] == predictions_2[i] == 1) or (predictions_2[i] == predictions_3[i] == 1) or (predictions_1[i] == predictions_3[i] == 1):
+                    y_pred.append(1)
+                else:
+                    y_pred.append(0)
     
         #seizure diagnose, calculate onset/offset
         #Seizure_present = True when seizure occurs on 3 consecutive segments
     
-        seizure_segment = []
-        for i in range(len(y_pred)-2):
-            if (y_pred[i] == 1 and y_pred[i+1] == 1 and y_pred[i+2] == 1):
-                seizure_segment.append(i)
+            seizure_segment = []
+            for i in range(len(y_pred)-2):
+                if (y_pred[i] == 1 and y_pred[i+1] == 1 and y_pred[i+2] == 1):
+                    seizure_segment.append(i)
+                else:
+                    pass
+
+            if not seizure_segment:
+                seizure_present = False
+                onset = 0
             else:
-                pass
-
-        if not seizure_segment:
-            seizure_present = False
-            onset = 0
-        else:
-            seizure_present = True
-            #after_seizure = predictions [seizure_segment[0]:]
+                seizure_present = True
+                #after_seizure = predictions [seizure_segment[0]:]
             
-            downsampling_factor = fs / target_sampling_rate #calculate downsampling factor
+                downsampling_factor = fs / target_sampling_rate #calculate downsampling factor
             
-            onset_index_downsampled = seizure_segment[0] #*downsampling_factor
-            onset_index_orginal = onset_index_downsampled * downsampling_factor + 1  # in sec
-            #onset_index_original = int(onset_index_downsampled * downsampling_factor)-1
+                onset_index_downsampled = seizure_segment[0] #*downsampling_factor
+                onset_index_orginal = onset_index_downsampled * downsampling_factor + 1  # in sec
+                #onset_index_original = int(onset_index_downsampled * downsampling_factor)-1
 
-            onset = (onset_index_orginal*segment_duration) / fs 
+                onset = (onset_index_orginal*segment_duration) / fs 
 
 #------------------------------------------------------------------------------  
     prediction = {"seizure_present":seizure_present,"seizure_confidence":seizure_confidence,
