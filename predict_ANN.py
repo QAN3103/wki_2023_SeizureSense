@@ -20,7 +20,7 @@ from random import randint
 import numpy as np
 import Segment_no_labels as sg
 import vorfilter
-import pre_process_test as pre
+import pre_process_test_ANN as pre
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import joblib
 from typing import List
@@ -39,7 +39,7 @@ from keras import regularizers
 import keras 
 
 ###Signatur der Methode (Parameter und Anzahl return-Werte) darf nicht verändert werden
-def predict_labels(channels : List[str], data : np.ndarray, fs : float, reference_system: str, model_name : str='model.json') Dict[str,Any]:
+def predict_labels(channels : List[str], data : np.ndarray, fs : float, reference_system: str, model_name : str='model.json') -> Dict[str,Any]:
     '''
     Parameters
     ----------
@@ -124,9 +124,9 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
             predictions = model.predict(X_test)
         
             threshold = 0.55
-            #predictions = [1 if x >= threshold else 0 for x in predictions]
+            predictions = [1 if x >= threshold else 0 for x in predictions]
             
-            predictions = custom_prediction_logic(predictions, threshold, consecutive_ones= 3, number_of_zeros=1)
+            #predictions = pre.custom_prediction_logic(predictions, threshold, consecutive_ones= 3, number_of_zeros=1)
     
             #seizure diagnose, calculate onset/offset
             #Seizure_present = True when seizure occurs on 3 consecutive segments
