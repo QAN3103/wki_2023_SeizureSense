@@ -99,7 +99,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
         df_test.replace([np.inf, -np.inf], 0, inplace=True)
         df_test = df_test.fillna(0)
         
-        if df_test.empty or df_test.shape[1] < 108:
+        if df_test.empty or list(df_test.shape)[1]<108:
             seizure_present = False
             onset = 0
         else:
