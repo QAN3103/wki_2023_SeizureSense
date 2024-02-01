@@ -33,6 +33,21 @@ from scipy.signal import find_peaks
 
 
 def bandpass(data: np.ndarray, edges: List[float], sample_rate: float, order: int = 8 ) -> np.ndarray:
+    """
+    Applies a Butterworth bandpass filter to the input data.
+
+    This function designs a second-order Butterworth bandpass filter and applies it to the input data using
+    forward and backward filtering.
+
+    Parameters:
+    - data (np.ndarray): Input data to be filtered.
+    - edges (List[float]): A list containing the low and high frequencies defining the bandpass filter.
+    - sample_rate (float): The sampling rate of the input data.
+    - order (int, optional): The order of the Butterworth filter. Default is 8.
+
+    Returns:
+    np.ndarray: Filtered data after applying the bandpass filter.
+    """
 
     # Design a second-order Butterworth bandpass filter
     sos = scipy.signal.butter(order, edges, 'bandpass', fs=sample_rate, output='sos')
