@@ -84,6 +84,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
         data_entries_test = []
         for i, item in enumerate(segmented_data_input):
             features = {}
+            item = np.transpose (item)
 
             for montage_idx, channel in enumerate(item, start=1):
             
@@ -94,9 +95,11 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
 
         df_test = pd.DataFrame(data_entries_test)
         #replace NaN and inf with 0
+        
         df_test.replace([np.inf, -np.inf], 0, inplace=True)
         df_test = df_test.fillna(0)
-        if df_test.empty:
+        
+        if df_test.empty or df_test.shape[1] < 108:
             seizure_present = False
             onset = 0
         else:
