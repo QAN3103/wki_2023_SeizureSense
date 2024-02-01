@@ -37,7 +37,7 @@ from keras import regularizers
 import keras 
 
 ###Signatur der Methode (Parameter und Anzahl return-Werte) darf nicht verändert werden
-def predict_labels(channels : List[str], data : np.ndarray, fs : float, model_name : str='model.json') -> Dict[str,Any]:
+def predict_labels(channels : List[str], data : np.ndarray, fs : float, reference_system: str, model_name : str='model.json') -> Dict[str,Any]:
     '''
     Parameters
     ----------
@@ -93,6 +93,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, model_na
             data_entries_test.append(features)
 
         df_test = pd.DataFrame(data_entries_test)
+        df_test = df_test.fillna(0)
         #Data Scaling
         scaler = MinMaxScaler(feature_range=(0, 1))
         
