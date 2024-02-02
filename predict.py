@@ -7,7 +7,7 @@ Skript testet das vortrainierte Modell
 @author:  Maurice Rohr, Dirk Schweickard
 """
 
-
+from sklearn.cluster import KMeans
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,8 +18,10 @@ from scipy import signal as sig
 import ruptures as rpt
 from random import randint
 import numpy as np
-import pre_process_test as pre
-from sklearn.preprocessing import MinMaxScaler
+import Segment_no_labels as sg
+import vorfilter
+import pre_process_test_ANN as pre
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import joblib
 from typing import List
 import pandas as pd
@@ -36,8 +38,11 @@ from tensorflow.keras.models import load_model, Model, Sequential
 from keras import regularizers
 import keras 
 
+
+
+
 ###Signatur der Methode (Parameter und Anzahl return-Werte) darf nicht verändert werden
-def predict_labels(channels : List[str], data : np.ndarray, fs : float, reference_system: str, model_name : str='model.json') -> Dict[str,Any]:
+def predict_labels(channels : List[str], data : np.ndarray, fs : float, model_name : str='model.json') -> Dict[str,Any]:
     '''
     Parameters
     ----------
@@ -84,8 +89,8 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
         data_entries_test = []
         for i, item in enumerate(segmented_data_input):
             features = {}
-            item = np.transpose (item)
-
+            
+            item = np.transpose(item)
             for montage_idx, channel in enumerate(item, start=1):
             
                 channel_features = pre.wavelet_features(channel, montage_idx)
@@ -94,50 +99,58 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
             data_entries_test.append(features)
 
         df_test = pd.DataFrame(data_entries_test)
-        #replace NaN and inf with 0
-        
         df_test.replace([np.inf, -np.inf], 0, inplace=True)
         df_test = df_test.fillna(0)
-        
-        if df_test.empty or list(df_test.shape)[1]<108:
+        if df_test.empty:
             seizure_present = False
             onset = 0
         else:
+            #Data Scaling
             scaler = MinMaxScaler(feature_range=(0, 1))
             #Fit the scaler on the training data and transform it
-            X_test_1 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,:36]), columns = df_test.iloc[:,:36].columns)
-            X_test_2 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,36:72]), columns = df_test.iloc[:,36:72].columns)
-            X_test_3 = pd.DataFrame(scaler.fit_transform(df_test.iloc[:,72:108]), columns = df_test.iloc[:,72:108].columns)
-            
-            #load pre-trained model
-            model1 = joblib.load('svm_classifier_1.sav')
-            model2 = joblib.load('svm_classifier_2.sav')
-            model3 = joblib.load('svm_classifier_3.sav')
-            
-            predictions_1 = model1.predict(X_test_1)
-            predictions_2 = model2.predict(X_test_2)
-            predictions_3 = model3.predict(X_test_3)
-        
-            y_pred = []
-            for i in range(len(predictions_1)):
-                if(predictions_1[i] == predictions_2[i] == 1) or (predictions_2[i] == predictions_3[i] == 1) or (predictions_1[i] == predictions_3[i] == 1):
-                    y_pred.append(1)
-                else:
-                    y_pred.append(0)
-    
-        #seizure diagnose, calculate onset/offset
-        #Seizure_present = True when seizure occurs on 3 consecutive segments
-    
-            seizure_segment = []
-            for i in range(len(y_pred)-2):
-                if (y_pred[i] == 1 and y_pred[i+1] == 1 and y_pred[i+2] == 1):
-                    seizure_segment.append(i)
-                else:
-                    pass
+            X_test = pd.DataFrame(scaler.fit_transform(df_test), columns = df_test.columns)
 
+            model = keras.models.load_model('wavelet_868_173.6_best.h5')
+            #calculate the probability that seizure occurs on each segment
+            predictions = model.predict(X_test)
+        
+            # Apply median-based adaptive threshold
+            median_threshold = np.median(predictions)
+            predictions = [1 if x >= median_threshold else 0 for x in predictions]
+            
+            seizure_segment = []
+
+            # Variables to keep track of the counting
+            max_count = 0  # Maximum count of consecutive 1s
+            current_count = 0  # Current count of consecutive 1s
+            start_index = None  # Start index of the current group of 1s
+            max_start_index = None  # Start index of the largest group of 1s
+
+            for i in range(len(predictions)):
+                if predictions[i] == 1:
+                    current_count += 1
+                    if current_count == 1:  # This is the start of a new group of 1s
+                        start_index = i
+                else:
+                    if current_count > max_count:  # Found a larger group of 1s
+                        max_count = current_count
+                        max_start_index = start_index
+                        current_count = 0  # Reset count for the next group
+
+            # Check the last group of 1s in case it's the largest
+            if current_count > max_count:
+                max_count = current_count
+                max_start_index = start_index
+
+            # Append the start index of the largest group of 1s, if such a group was found and it contains more than 1 element
+            if max_start_index is not None and max_count >= 2:
+                seizure_segment.append(max_start_index)
+                
+            #predictions = pre.custom_prediction_logic(predictions, threshold, consecutive_ones= 3, number_of_zeros=1)
             if not seizure_segment:
                 seizure_present = False
                 onset = 0
+            
             else:
                 seizure_present = True
                 #after_seizure = predictions [seizure_segment[0]:]
@@ -145,10 +158,11 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
                 downsampling_factor = fs / target_sampling_rate #calculate downsampling factor
             
                 onset_index_downsampled = seizure_segment[0] #*downsampling_factor
-                onset_index_orginal = onset_index_downsampled * downsampling_factor + 1  # in sec
-                #onset_index_original = int(onset_index_downsampled * downsampling_factor)-1
-
+                onset_index_orginal = onset_index_downsampled * downsampling_factor +1    # in sec
+            
                 onset = (onset_index_orginal*segment_duration) / fs 
+               
+        
 
 #------------------------------------------------------------------------------  
     prediction = {"seizure_present":seizure_present,"seizure_confidence":seizure_confidence,
@@ -156,4 +170,11 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
                    "offset_confidence":offset_confidence}
   
     return prediction # Dictionary mit prediction - Muss unverändert bleiben!
-
+                               
+                               
+        
+# Calculate Downsampling Factor
+    #downsampling_factor = original_sampling_frequency / target_sampling_rate
+    # Convert New Indices Back to Seconds
+    #onset_time_downsampled = onset_index_downsampled / target_sampling_rate
+    #offset_time_downsampled = offset_index_downsampled / target_sampling_rate
