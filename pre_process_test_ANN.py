@@ -301,4 +301,15 @@ def custom_prediction_logic(predictions, threshold=0.55, consecutive_ones=3, num
 
     return modified_predictions
 
+def reshape_and_scale(data, scaler, fit=False):
+    # Reshape the data to a 2D array for scaling
+    data_reshaped = data.reshape(-1, data.shape[2])
+    
+    # Fit the scaler to the data if required, and transform the data
+    if fit:
+        return scaler.fit_transform(data_reshaped).reshape(data.shape)
+    else:
+        return scaler.transform(data_reshaped).reshape(data.shape)
+
+
 
