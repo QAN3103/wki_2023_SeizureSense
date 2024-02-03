@@ -18,8 +18,6 @@ from scipy import signal as sig
 import ruptures as rpt
 from random import randint
 import numpy as np
-# import Segment_no_labels as sg
-# import vorfilter
 import pre_process_test_ANN as pre
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import joblib
