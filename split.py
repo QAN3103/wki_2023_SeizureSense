@@ -1,3 +1,43 @@
+"""
+EEG Data Processing and Analysis Module
+
+This module provides functions and classes for processing and analyzing EEG (Electroencephalogram) data. It includes
+functionalities for splitting datasets into subsets, dividing data into train, test, and validation sets, loading EEG data from
+files, and more.
+
+Authors:
+- Jana Taube
+- Ayman Kabawa
+- Quỳnh Anh Nguyễn
+- Dirk Schweickard
+- Maurice Rohr
+
+Functions:
+- create_subsets: Creates subsets of data based on unique patient identifiers.
+- write_csv: Writes a DataFrame to a CSV file.
+- split_data: Splits data into train, test, and validation sets.
+- equal_split: Attempts to split data into sets with roughly equal seizure distributions.
+- load_references_self: Loads EEG data from specified folder and reference file.
+- load_folder: Loads train, test, and val data from a specified folder.
+- delete_folder_contents: Deletes the contents of a specified folder.
+- load_folder_as_one: Combines train, test, and val data from a folder into a single dataset.
+
+Classes:
+- EEGDataset: Represents an EEG dataset.
+- EEGStruct: Represents the structure of EEG data.
+
+Usage:
+This module is intended to be used as part of an EEG data analysis pipeline, facilitating the preprocessing, loading, and
+splitting of EEG datasets for further analysis or machine learning tasks.
+
+Requirements:
+- Python 3.x
+- Libraries: Scikit-learn,Pandas, NumPy, Scipy
+
+Please note: This module assumes the presence of specific file structures and formats as part of its operation. Ensure that
+your data is correctly formatted and that necessary files are in place before using these utilities.
+"""
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -6,7 +46,6 @@ from typing import List, Tuple, Dict, Any
 import csv
 import scipy.io as sio
 import shutil
-
 
 
 def create_subsets(data: pd.DataFrame, number_subsets: int) -> List:
@@ -26,22 +65,15 @@ def create_subsets(data: pd.DataFrame, number_subsets: int) -> List:
     
     # Calculate the total number of entries for each patient
     patient_entry_counts = data.groupby(data[0].apply(lambda x: x.split('_')[0])).size()
-    # print(f'Calculate number of patients: \n {patient_entry_counts}')
     
     # Step 2: Sort patients based on the number of entries
     sorted_patients = patient_entry_counts.sort_values(ascending=False).index
-    # print(f'Sortierte Patients : \n{sorted_patients}')
     
     # Step 3: Distribute patients sequentially to subsets
     subsets_patients = [sorted_patients[i::number_subsets] for i in range(number_subsets)]
     
-    # Debugging: Print the distribution of patients across subsets
-    # print("Distribution of patients across subsets:")
-    # for i, subset_patients in enumerate(subsets_patients):
-    #     print(f"Subset {i + 1}: {subset_patients}, Total Entries: {sum(patient_entry_counts[subset_patients])}")
-
-    subsets = []
     # Step 4: Create and save subsets
+    subsets = []
     for i, subset_patients in enumerate(subsets_patients):
         # Filter data based on the selected patient sets
         subset = data[data[0].apply(lambda x: x.split('_')[0]).isin(subset_patients)]
@@ -69,8 +101,6 @@ def write_csv(df: pd.DataFrame, folder: str, name: str)->None:
     print(f'\n The file has been saved as {name} in the folder {folder}')
     
 
-    
-# Function to split into train, test, and val set 
 def split_data(data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, np.ndarray]:
     """
     Splits EEG data into train, test, and validation sets based on unique patients.
@@ -85,9 +115,6 @@ def split_data(data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataF
     - split_percentage (numpy.ndarray): An array containing the percentage of seizures in each set (train, test, val).
     - patients_split (list): A list containing the split of patients into train, test, and validation sets.
 
-    Example:
-    >>> split_data(eeg_data)
-    (train_data, test_data, val_data, split_percentage, patients_split)
     """
     
     # Step 1: Extract unique patients identified by the letters before the first "_"
@@ -135,9 +162,6 @@ def equal_split(data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Data
     - split_percentage (list): A list containing the percentage of seizures in each set.
     - patients_split (numpy.ndarray): An array representing the distribution of patients in each set.
 
-    Example:
-    >>> equal_split(eeg_data)
-    (train_data, test_data, val_data, split_percentage, patients_split)
     """
         
     train_data, test_data, val_data, split_percentage, patients_split = split_data(data)
@@ -163,30 +187,29 @@ def equal_split(data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Data
 def load_references_self(folder: str = '../shared_data/training_mini', reference_file: str = '../shared_data/training_mini/REFERENCE.csv') -> Tuple[List[str], List[List[str]],
                                                           List[np.ndarray],  List[float],
                                                           List[str], List[Tuple[bool,float,float]]]:
-    """fit
-    Parameters
-    ----------
-    folder : str, optional
-        Ort der Trainingsdaten. Default Wert '../training'.
-        
-    reference_file: 
-        .csv datei pfad oder dataframe
+    """
+    Load EEG dataset information from a specified folder and reference file.
 
-    Returns
-    -------
-    ids : List[str]
-        Liste von ID der Aufnahmen
-    channels : List[List[str]]
-        Liste der vorhandenen Kanäle per Aufnahme
-    data :  List[ndarray]
-        Liste der Daten pro Aufnahme
-    sampling_frequencies : List[float]
-        Liste der Sampling-Frequenzen.
-    reference_systems : List[str]
-        Liste der Referenzsysteme. "LE", "AR", "Sz" (Zusatz-Information)
+    This function reads EEG data files and their metadata, organizing them into structured lists for further processing or analysis.
+    The EEG data and metadata include identifiers, channel configurations, raw data arrays, sampling frequencies, reference systems,
+    and labels indicating seizure presence along with seizure start and end times.
+
+    Parameters:
+    - folder (str, optional): The directory path where the EEG data files are stored. Defaults to '../training'.
+    - reference_file (str, optional): The path to the CSV file containing metadata for the EEG recordings. This file should list the identifiers, seizure presence,
+    and seizure timing information. Defaults to '../training/REFERENCE.csv'.
+
+    Returns:
+    - ids (List[str]): A list containing the identifiers for each EEG recording.
+    - channels (List[List[str]]): A list where each element is a list of channel names available in the corresponding EEG recording.
+    - data (List[np.ndarray]): A list of NumPy arrays, each containing the raw EEG data for a recording.
+    - sampling_frequencies (List[float]): A list of sampling frequencies (in Hz) for each EEG recording.
+    - reference_systems (List[str]): A list of reference system identifiers used in the EEG recordings (e.g., "LE", "AR", "Sz").   
+    - eeg_labels (List[Tuple[bool, float, float]]): A list of tuples for each EEG recording, where each tuple contains a boolean indicating the presence of a seizure,
+    the start time of the seizure (if any), and the end time of the seizure (if any).
     """
     
-    # Initialisiere Listen ids, channels, data, sampling_frequencies, refernece_systems und eeg_labels
+    # initialize Lists ids, channels, data, sampling_frequencies, refernece_systems, and eeg_labels
     ids: List[str] = []
     channels: List[List[str]] = []
     data: List[np.ndarray] = []
@@ -194,7 +217,7 @@ def load_references_self(folder: str = '../shared_data/training_mini', reference
     reference_systems: List[str] = []
     eeg_labels: List[Tuple[bool,float,float]] = []
     
-    # Erzeuge Datensatz aus Ordner und fülle Listen mit Daten
+    # create a dataset from a folder and populate lists with data
     dataset = EEGDataset(folder, reference_file)
     for item in dataset:
         ids.append(item[0])
@@ -204,44 +227,45 @@ def load_references_self(folder: str = '../shared_data/training_mini', reference
         reference_systems.append(item[4])
         eeg_labels.append(item[5])
         
-    # Zeige an wie viele Daten geladen wurden
+    # show how much data was loaded
     print("{}\t Dateien wurden geladen.".format(len(ids)))
     return ids, channels, data, sampling_frequencies, reference_systems, eeg_labels
 
 
 class EEGDataset:
     def __init__(self,folder:str, reference_file:str) -> None:
-        """Diese Klasse stellt einen EEG Datensatz dar.
-        
-        Verwendung:
-            Erzeuge einen neuen Datensatz (ohne alle Daten zu laden) mit
+        """
+        This class represents an EEG dataset.
+        Main structure from Dirk Scheickard and Maurice Rohr. Changes for own purpose. 
+
+        Usage:
+            Create a new dataset (without loading all data) with
             dataset = EEGDataset("../training/")
-            len(dataset) # gibt Größe des Datensatzes zurück
-            dataset[0] # gibt erstes Element aus Datensatz zurück bestehend aus (id, channels, data, sampling_frequency, reference_system, eeg_label)
-            it = iter(dataset) # gibt einen iterator zurück auf den Datensatz,
-            next(it) # gibt nächstes Element zurück bis alle Daten einmal geholt wurden
-            for item in dataset: # iteriert einmal über den gesamten Datensatz
-                (id, channels, data, sampling_frequency, reference_system, eeg_label) = item
-                # Berechnung
+            len(dataset) # returns the dataset size
+            dataset[0] # returns the first element from the dataset consisting of (id, channels, data, sampling_frequency, reference_system, eeg_label)
+            it = iter(dataset) # returns an iterator on the dataset,
+            next(it) # returns the next element until all data is fetched once
+            for item in dataset: # iterates over the entire dataset once
+            (id, channels, data, sampling_frequency, reference_system, eeg_label) = item
+        
 
         Args:
-            folder (str): Ordner in dem der Datensatz bestehend aus .mat-Dateien und einer REFERENCE.csv Datei liegt
+        folder (str): Folder where the dataset consisting of .mat files and a REFERENCE.csv file is located.
+        
         """
         assert isinstance(folder, str), "Parameter folder muss ein string sein aber {} gegeben".format(type(folder))
         assert os.path.exists(folder), 'Parameter folder existiert nicht!'
         assert os.path.exists(reference_file), 'Reference datei existiert nicht!'
-        # Initialisiere Listen für ids und labels
+        # Initialize lists for channel and id
         self._folder = folder
         self._ids: List[str] = []
         self._eeg_labels: List[Tuple[bool,float,float]] = []
-        # Lade references Datei
+        # load reference data
         with open(reference_file) as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
             
-            # Iteriere über jede Zeile
+            # iterate over each row
             for row in csv_reader:
-                # print(f'{row}')
-                # print(f'{row[0]}')
                 self._ids.append(row[0])
                 self._eeg_labels.append((int(row[1]),float(row[2]),float(row[3])))
     
@@ -251,7 +275,7 @@ class EEGDataset:
     def __getitem__(self,idx) -> Tuple[str, List[str],
                                     np.ndarray,  float,
                                     str, Tuple[bool,float,float]]:
-        #Lade Matlab-Datei
+        #load Matlab-file
         eeg_data = sio.loadmat(os.path.join(self._folder, self._ids[idx] + '.mat'),simplify_cells=True)
         ch_names = eeg_data.get('channels')
         channels = [x.strip(' ') for x in ch_names] 
@@ -274,7 +298,7 @@ class EEGStruct:
     - data (List): List of EEG data samples.
     - sampling_frequencies (List): List of corresponding sampling frequencies for each data sample.
     - reference_systems (List): List of reference systems used in the EEG recordings.
-    - eeg_labels (List): List of labels associated with the EEG data.
+    - eeg_labels (List): List of labels associated with the EEG data (seizure/no-seizure).
     """
     def __init__(self, ids, channels, data, sampling_frequencies, reference_systems, eeg_labels):
         self.ids = ids
@@ -287,7 +311,7 @@ class EEGStruct:
 
 
         
-def split_file(reference: str, number_subsets: int, folder: str = 'split/'):
+def split_file(reference: str, number_subsets: int, folder: str = 'split/')-> List:
     """
    Splits a reference CSV file into a specified number of subsets and further divides each subset into training, testing, and validation data.
     
@@ -299,7 +323,7 @@ def split_file(reference: str, number_subsets: int, folder: str = 'split/'):
     Returns:
     paths_subsets (List): contains the paths of the subsets
     
-    Example: paths_subsets = split_file('shared_data/training/REFERENCE.csv', 7, 'split/')
+    Example: paths_subsets = split_file('shared_data/training/REFERENCE.csv', 10, 'split/')
     """
     
     # List for names of the subsets
@@ -317,7 +341,6 @@ def split_file(reference: str, number_subsets: int, folder: str = 'split/'):
     # Step 1: Split the csv into n sets using the function "create_subsets"
     subsets = create_subsets(data, number_subsets)
     
-    
     # Step 2: Split a subset into train, test and val data
     for i, subset in enumerate(subsets):
         # split subset into train, test and val data
@@ -334,6 +357,7 @@ def split_file(reference: str, number_subsets: int, folder: str = 'split/'):
         write_csv(val_data, subset_folder, 'val.csv')
     
     return paths_subsets
+
 
 def load_folder(folder: str)->Tuple[EEGStruct, EEGStruct, EEGStruct]:
     """
@@ -388,7 +412,17 @@ def load_folder(folder: str)->Tuple[EEGStruct, EEGStruct, EEGStruct]:
 
 
 
-def delete_folder_contents(folder_path):
+def delete_folder_contents(folder_path: str)-> None:
+    '''
+    Checks if a folder exists and, if it does, deletes the contents, including files and subfolders, within it.
+    
+    Parameters:
+    - folder_path (str): Path to a folder that wants to be deleted.
+    
+    Returns:
+    - None
+    
+    '''
     try:
         # Check if the folder exists
         if os.path.exists(folder_path):
@@ -413,18 +447,16 @@ def delete_folder_contents(folder_path):
         
 def load_folder_as_one(folder: str)->EEGStruct:
     """
-    Load EEG data from a specified folder and return three structures (train, test, and val). 
-    The data is assumed to be stored in three separate CSV files: 'train.csv', 'test.csv', and 'val.csv'
-    within the specified folder.
+    Load EEG data from a specified folder and return one EEGStruct. 
+    The data is assumed to be stored in three separate CSV files: 'train.csv', 'test.csv', and 'val.csv' within the specified folder.
 
     Parameters:
     - folder (str): The path to the folder containing the EEG data files.
 
     Returns:
-    Tuple[EEGStruct, EEGStruct, EEGStruct]: A tuple of three EEGStruct instances representing the
-    training, testing, and validation datasets, respectively.
+    - subset (EEGStruct): A EEGStruct instances representing the training, testing, and validation dataset in the specified folder.
 
-    Each EEGStruct instance contains the following attributes:
+    EEGStruct instance contains the following attributes:
     - ids: List of identifiers for each data sample.
     - channels: List of EEG channels used in the data.
     - data: List of EEG data samples.
