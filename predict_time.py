@@ -89,7 +89,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, referenc
         # Scale the datasets
             X_train = pre.reshape_and_scale(segmented_data_input, scaler, fit=True)
 
-            model = keras.models.load_model('final_CNN_time_3_montages_868_173.61_resamples.h5')
+            model = keras.models.load_model('time_model.h5')
         #calculate the probability that seizure occurs on each segment
             predictions = model.predict(X_train)
         
