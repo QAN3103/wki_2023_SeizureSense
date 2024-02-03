@@ -1,3 +1,27 @@
+"""
+EEG Data Preprocessing and Feature Extraction Pipeline for testing and submission 
+
+This script is designed to preprocess EEG (electroencephalogram) data for seizure detection. It incorporates various signal processing techniques, including filtering, segmentation, and feature extraction using wavelet transforms, to prepare the data for classification.
+
+Authors:
+- Ayman Kabawa
+- Quỳnh Anh Nguyễn
+- Jana Taube
+
+Functions:
+- `bandpass`: Filters the signal within a specific frequency band.
+- `apply_notch_filter`: Removes a specific frequency from the signal.
+- `segmentation_train`: Splits the signal into segments based on seizure events.
+- `data_preprocess`: Applies notch and bandpass filters, and performs segmentation.
+- `wavelet_features`: Extracts wavelet-based features from each segment.
+- `reshape_and_scale`: Scaling the data using scaler as input parameter
+
+Requirements:
+- Python 3.x
+- Libraries: Scikit-learn, Pandas, NumPy, Scipy, Pywt, typing
+- Custom modules: wettbewerb
+
+"""
 
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import numpy as np
@@ -31,7 +55,6 @@ import scipy
 from scipy.signal import find_peaks
 
 
-
 def bandpass(data: np.ndarray, edges: List[float], sample_rate: float, order: int = 8 ) -> np.ndarray:
     """
     Applies a Butterworth bandpass filter to the input data.
@@ -57,23 +80,6 @@ def bandpass(data: np.ndarray, edges: List[float], sample_rate: float, order: in
 
     return filtered_data
 
-def notch_filter(data: np.ndarray, notch_freq: float, sample_rate: float, quality_factor: float = 30) -> np.ndarray:
-    """
-    Apply a notch (band-stop) filter to the data.
-
-    Parameters:
-    data (np.ndarray): The input signal.
-    notch_freq (float): The center frequency to be notched out.
-    sample_rate (float): The sampling rate of the data.
-    quality_factor (float): Quality factor for the notch filter, which determines the bandwidth around the notch_freq.
-
-    Returns:
-    np.ndarray: The filtered data.
-    """
-    sos = scipy.signal.iirnotch(w0=notch_freq, Q=quality_factor, fs=sample_rate)
-    filtered_data = scipy.signal.sosfiltfilt(sos, data)
-    return filtered_data
-
 def apply_notch_filter(data, notch_freq, fs, quality_factor=30):
     """
     Applies a notch filter to the input data.
@@ -85,7 +91,7 @@ def apply_notch_filter(data, notch_freq, fs, quality_factor=30):
         - quality_factor: Quality factor of the notch filter. Defaults to 30.
 
     Returns:
-        - y: Filtered data.
+        - y (np.ndarray): Filtered data.
 
     Note:
         This function uses an Infinite Impulse Response (IIR) notch filter.
@@ -104,11 +110,11 @@ def segmentation_train(data_montage, segment_duration=None):
     Segments EEG data based on seizure onset and offset timings "without overlapping".
 
     Parameters:
-    - data_montage: NumPy array containing EEG signals (montages x samples)
-    - segment_duration: Duration of each segment in seconds (default: 30 seconds)
+    - data_montage (np.ndarray): NumPy array containing EEG signals (montages x samples)
+    - segment_duration (float, optional): Duration of each segment in seconds (default: 30 seconds)
     
     Returns:
-    - segmented_data: List of NumPy arrays containing segmented EEG data
+    - segmented_data (list of np.ndarray): List of NumPy arrays containing segmented EEG data
     """
     segmented_data = []  # List to store segmented data
    
@@ -200,7 +206,7 @@ def data_preprocess(data, sampling_f,channels, target_sampling_rate, segment_dur
 
 def wavelet_features(data, montage_num):
     """
-    Extracts wavelet features from EEG data using the Discrete Wavelet Transform (DWT).
+    Extracts wavelet features from EEG data using the Discrete Wavelet Transform (DWT) with function db4 level 5.
 
     Parameters:
         - data (np.ndarray): EEG data for feature extraction.
@@ -238,70 +244,18 @@ def wavelet_features(data, montage_num):
 
     return features
 
-def custom_prediction_logic(predictions, threshold=0.55, consecutive_ones=3, number_of_zeros=1):
+def reshape_and_scale(data, scaler, fit=False):
     """
-    Applies custom post-processing logic to binary predictions.
-
-    This function takes a list of binary predictions and modifies them based on specified criteria.
+    Reshapes and scales EEG data using a MinMaxScaler.
 
     Parameters:
-    - predictions (list): A list of binary predictions (0 or 1).
-    - threshold (float, optional): The threshold for considering a prediction as 1. Default is 0.55.
-    - consecutive_ones (int, optional): The minimum number of consecutive 1s to keep in a sequence. Default is 3.
-    - number_of_zeros (int, optional): The maximum number of zeros allowed between consecutive 1s. Default is 1.
+        - data (np.ndarray): EEG data to be reshaped and scaled.
+        - scaler (MinMaxScaler): Scaler object for scaling the data.
+        - fit (bool, optional): If True, fit the scaler to the data (default: False).
 
     Returns:
-    list: Modified binary predictions following the custom logic.
+        - scaled_data (np.ndarray): Reshaped and scaled EEG data.
     """
-    modified_predictions = [0] * len(predictions)
-    length = len(predictions)
-    i = 0
-
-    # Step 1: Replace 0s between 1s
-    while i < length:
-        if predictions[i] >= threshold:  # Start of a potential sequence
-            start = i
-            ones_count = 0
-            zeros_in_between = 0
-
-            # Count the ones and zeros within the specified limits
-            while i < length and (predictions[i] >= threshold or zeros_in_between < number_of_zeros):
-                if predictions[i] >= threshold:
-                    ones_count += 1
-                    zeros_in_between = 0
-                else:
-                    zeros_in_between += 1
-                i += 1
-
-            # If zeros are still being counted, adjust i to exclude trailing zeros
-            if zeros_in_between > 0:
-                i -= zeros_in_between
-
-            # Mark the sequence as ones if it meets the criteria
-            if ones_count >= 1:
-                for j in range(start, i):
-                    modified_predictions[j] = 1
-            else:
-                i = start + 1  # Move past this sequence
-        else:
-            i += 1
-
-    # Step 2: Replace short sequences of ones with zeros
-    i = 0
-    while i < length:
-        if modified_predictions[i] == 1:
-            start = i
-            while i < length and modified_predictions[i] == 1:
-                i += 1
-            if i - start < consecutive_ones:
-                for j in range(start, i):
-                    modified_predictions[j] = 0
-        else:
-            i += 1
-
-    return modified_predictions
-
-def reshape_and_scale(data, scaler, fit=False):
     # Reshape the data to a 2D array for scaling
     data_reshaped = data.reshape(-1, data.shape[2])
     
