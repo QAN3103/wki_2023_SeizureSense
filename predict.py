@@ -1,10 +1,21 @@
 # -*- coding: utf-8 -*-
 """
 
-Skript testet das vortrainierte Modell
+Predicts seizure events in EEG data using a pre-trained neural network model.
+
+Authors:
+- Dirk Schweickard
+- Maurice Rohr
+- Ayman Kabawa
+- Quỳnh Anh Nguyễn
+- Jana Taube
 
 
-@author:  Maurice Rohr, Dirk Schweickard
+Requirements:
+- Python 3.x
+- Libraries: Scikit-learn, Pandas, NumPy, Matplotlib, Scipy, Pywt, Mne, Raptures, Joblib, Keras, Tensorflow
+- Custom modules: wettbewerb
+
 """
 
 from sklearn.cluster import KMeans
