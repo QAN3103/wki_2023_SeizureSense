@@ -4,6 +4,8 @@ Project by Ayman Kabawa, Quỳnh Anh Nguyễn and Jana Taube
 ## Short Overview
 This project contains the necessary code to train an artificial neuronal network (ANN) for detecting epileptic seizures in EEG data. The data is first preprocessed using a notch filter, bandpass filter, resampled, combined to a montage, and segmented. Then features are extraced from the wavelet domain. 
 
+!Important: The code in the file train.py needs a large amout of data. For the code to run properly the function load_data() can be run to create the required .csv files. Alternatively the files can be uploaded and have to be stored in a folder called 'wavelet'.
+
 
 ## Road Map
 The code consists of two main steps. 1) Creating the ANN model and 2) predicting seizures using the model
