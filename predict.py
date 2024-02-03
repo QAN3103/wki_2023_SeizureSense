@@ -18,8 +18,8 @@ from scipy import signal as sig
 import ruptures as rpt
 from random import randint
 import numpy as np
-import Segment_no_labels as sg
-import vorfilter
+# import Segment_no_labels as sg
+# import vorfilter
 import pre_process_test_ANN as pre
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import joblib
@@ -42,7 +42,7 @@ import keras
 
 
 ###Signatur der Methode (Parameter und Anzahl return-Werte) darf nicht verändert werden
-def predict_labels(channels : List[str], data : np.ndarray, fs : float, model_name : str='model.json') -> Dict[str,Any]:
+def predict_labels(channels : List[str], data : np.ndarray, fs : float, reference_system: str, model_name : str='model.json') -> Dict[str,Any]:
     '''
     Parameters
     ----------
@@ -110,7 +110,7 @@ def predict_labels(channels : List[str], data : np.ndarray, fs : float, model_na
             #Fit the scaler on the training data and transform it
             X_test = pd.DataFrame(scaler.fit_transform(df_test), columns = df_test.columns)
 
-            model = keras.models.load_model('wavelet_868_173.6_best.h5')
+            model = keras.models.load_model('model.h5')
             #calculate the probability that seizure occurs on each segment
             predictions = model.predict(X_test)
         
