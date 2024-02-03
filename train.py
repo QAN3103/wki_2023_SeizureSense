@@ -99,11 +99,8 @@ def make_model(input_shape):
 
     return keras.models.Model(inputs=input_layer, outputs=output_layer)
 
-
-def main():
-    """
-    Main function to execute the preprocessing, model construction, and training process.
-    """
+def load_data():
+    
     target_sampling_rate = 173.61 # get the same sampling rate for all signals
     segment_length = 5 # time in s for length of segment
     segment_duration = int(segment_length*target_sampling_rate) # samples 
@@ -115,11 +112,20 @@ def main():
     subsets = split_file(reference_file, number_subsets, destination_folder) # List with path names to subsets
     
     # filter, downsample, calculate montages, and segment the data and label it 
-    df_train, df_val, _ = pre_process.preprocess_all_subsets(subsets, target_sampling_rate, segment_duration)# _ is for df_test(to save momeory while training)
+    df_train, df_val, df_test = pre_process.preprocess_all_subsets(subsets, target_sampling_rate, segment_duration)
+    return df_train, df_val, df_test
+
+
+def main():
+    """
+    Main function to execute the preprocessing, model construction, and training process.
+    """
+    # The size of the data is too large to load it all at once. Therefore the function has been executed in smaller steps and the dataframes are loaded from .csv files that have been saved previously.
+    # df_train, df_val, df_test = load_data()
+    df_train = pd.read_csv('wavelet/wavelet_train.csv')
+    df_val = pd.read_csv('wavelet/wavelet_val.csv')
+    df_test = pd.read_csv('wavelet/wavelet_test.csv')
     
-    # optinal: save the pre-proccessed data
-    # destination_folder = 'wavelet/'
-    # create_wavelet_csv(df_train, df_val, df_test, destination_folder)
     
     # split in train and val subsets
     X_train = df_train.iloc[:, :-1]
